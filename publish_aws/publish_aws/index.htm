@@ -1,0 +1,58 @@
+<!-- Include Socket.IO in your HTML file
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
+
+<script>
+  const socket = io('http://localhost:1884');
+
+  socket.on('ttn-data', (data) => {
+    console.log('Received TTN data:', data);
+    // Handle TTN data as needed
+  });
+</script> -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Socket.IO Example</title>
+  <!-- Include Socket.IO in your HTML file -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
+</head>
+<body>
+  <div id="ttnDataContainer">
+    <!-- <h2>TTN Data:</h2> -->
+    <div id="ttnDataList"></div>
+  </div>
+
+  <!-- <div id="connectionStatusContainer">
+    <h2>Connection Status:</h2>
+    <p id="connectionStatus"></p>
+  </div> -->
+
+  <script>
+    // const socket = io('http://localhost:1888');
+    const socket = io('http://www.dspx.eu:1884');
+
+    // Listen for the 'ttn-data' event
+    socket.on('ttn-data', (data) => {
+      console.log('Received TTN data:', data);
+
+      // Update the UI with TTN data
+      const ttnDataList = document.getElementById('ttnDataList');
+      const listItem = document.createElement('li');
+      listItem.textContent = JSON.stringify(data);
+      ttnDataList.appendChild(listItem);
+    });
+
+    // Listen for the 'connection-success' event
+    socket.on('connection-success', (message) => {
+      console.log('Server connection successful:', message);
+
+      // Update the UI with connection status
+      const connectionStatus = document.getElementById('connectionStatus');
+      connectionStatus.textContent = message;
+    });
+  </script>
+</body>
+</html>
