@@ -31,9 +31,8 @@
   </div> -->
 
   <script>
-    // const socket = io('http://localhost:1888');
-    //const socket = io('http://www.dspx.eu:1884');
-    const socket = io('http://13.49.217.91:1884');
+   // const socket = io('http://localhost:1888');     //for local debugging
+    const socket = io('http://13.49.217.91:1884');  //for production
 
     // Listen for the 'ttn-data' event
     socket.on('ttn-data', (data) => {
