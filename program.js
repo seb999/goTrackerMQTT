@@ -144,6 +144,10 @@ function sendFirebaseNotification(token) {
       key1: 'Bonjour',
       key2: 'Comment ca va ?',
     },
+    notification:{
+      title:"Who is the best pilot?",
+      body:"The little Seb!"
+    },
     token: registrationToken,
   };
 
