@@ -1,4 +1,11 @@
 // NOTE : - to launch the server : node program.js
+// This nodejs server do the following :
+//    -create a socket.io for clients to connect to
+//    -subscribe to TTN mosquitto (MQTT) messages
+//    -redirect those messages to clients 
+//    -and send firebase notification
+
+
 //----Networks------------------------
 const express = require('express');
 const http = require('http');
@@ -33,9 +40,9 @@ admin.initializeApp({
 });
 const messaging = admin.messaging();
 
-//------------------------------------------------------------------
-// 2 - create socket-io websocket, and client will subscribe to it
-//--------------------------------------------------------------
+//----------------------------------------------------------------------------------------------
+// 2 - create socket-io websocket for clients to subscribe to it and share their firebase token
+//----------------------------------------------------------------------------------------------
 const io = new Server(server, {
   cors: {
     origin: '*', // Replace with your client's origin example http://your-client-origin
@@ -68,10 +75,9 @@ io.on('connection', (socket) => {
   });
 });
 
-
-//--------------------------------------------------------------
-// 3 - create a MQTT client to connect to TheThingNetwork.org
-//--------------------------------------------------------------
+//-------------------------------------------------------------------------------
+// 3 - subscribe to TTN events and get messages and trigger firebase notification
+//--------------------------------------------------------------------------------
 const TTN_BROKER = 'eu1.cloud.thethings.network';
 const TTN_PORT = 1883;
 const TTN_APP_ID = 'mt-1@ttn';
@@ -105,8 +111,6 @@ ttnClient.on('message', async (topic, message) => {
         console.log(`Sending Firebase notification to ${deviceId}`);
         sendFirebaseNotification(firebaseToken);
       }
-      
-
     } else {
       console.log(`No Firebase Token found for deviceId ${deviceId}`);
     }
@@ -124,7 +128,6 @@ const PORT = 1888;
 server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
-
 
 function decodeTTNMessage(message) {
   // Assuming the payload is in base64 format, decode it
