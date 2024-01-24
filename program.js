@@ -1,14 +1,21 @@
 // NOTE : - to launch the server : node program.js
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('mydatabase.db');
+const db = new sqlite3.Database('gotracker.db');
+const { open } = require('sqlite');
 const http = require('http');
 const { Server } = require('socket.io');
 const mqtt = require('mqtt');
-const cors = require('cors');   
+const cors = require('cors');
 
 const admin = require('firebase-admin');
-const serviceAccount = require('./path/to/serviceAccountKey.json');
+const serviceAccount = require('./firebaseServiceAccountKey.json');
+
+// Open the database with sqlite.promisify
+const dbPromise = open({
+  filename: 'gotracker.db',
+  driver: sqlite3.Database
+});
 
 //------------------------------------------------------------------
 // 0- Create Node server
@@ -16,10 +23,6 @@ const serviceAccount = require('./path/to/serviceAccountKey.json');
 const app = express();
 const server = http.createServer(app);
 app.use(cors());
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
 
 //------------------------------------------------------------------
 // 1 - Initialize Firebase
@@ -43,10 +46,24 @@ const io = new Server(server, {
 // Socket.IO connection
 io.on('connection', (socket) => {
   console.log('Client connected');
+  io.emit('client-connected', "ok");
 
   // Handle disconnection
   socket.on('disconnect', () => {
     console.log('Client disconnected');
+  });
+
+  socket.on('firebase-token', (data) => {
+    console.log("token coming from client");
+    console.log(data);
+    
+    const insertQuery = 'INSERT OR REPLACE INTO device (deviceId, firebaseToken ) VALUES (?, ?)';
+    db.run(insertQuery, [data.deviceId, data.token], function (err) {
+      if (err) {
+        return console.error(err.message);
+      }
+      console.log(`A row has been inserted with rowid ${this.lastID}`);
+    });
   });
 });
 
@@ -72,9 +89,29 @@ ttnClient.on('connect', () => {
 });
 
 // Forward TTN data to connected Socket.IO clients and if activated send firebase notification
-ttnClient.on('message', (topic, message) => {
-  console.log(topic);
+ttnClient.on('message', async (topic, message) => {
+  const deviceId = decodeTTNMessage(message);
+  try {
+    const db = await dbPromise;
+
+    const query = 'SELECT firebaseToken FROM device WHERE deviceId = ?';
+    const row = await db.get(query, ['lora1']);
+    if (row && row.firebaseToken) {
+      const firebaseToken = row.firebaseToken;
+      console.log(`Firebase Token for deviceName ${deviceId}: ${firebaseToken}`);
+
+      // Trigger Firebase notification logic here using the retrieved token and the decoded message
+      // sendFirebaseNotification(firebaseToken, decodedMessage);
+    } else {
+      console.log(`No Firebase Token found for deviceId ${deviceId}`);
+    }
+  } catch (error) {
+    console.error('Error processing TTN message:', error.message);
+  }
+
   io.emit('ttn-data', message.toString());
+
+  //Read Firebase token from db and trigger firebase notification
 
   //send firebase notification
 
@@ -87,3 +124,29 @@ const PORT = 1888;
 server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
+
+
+function decodeTTNMessage(message) {
+  // Assuming the payload is in base64 format, decode it
+  const decodedMessage = atob(message.toString('base64'));
+  const jsonData = JSON.parse(decodedMessage);
+  return jsonData.end_device_ids.device_id;
+}
+//example to trigger firebase message
+// const registrationToken = 'your_device_registration_token';
+
+// const message = {
+//   data: {
+//     key1: 'value1',
+//     key2: 'value2',
+//   },
+//   token: registrationToken,
+// };
+
+// messaging.send(message)
+//   .then((response) => {
+//     console.log('Successfully sent message:', response);
+//   })
+//   .catch((error) => {
+//     console.error('Error sending message:', error);
+//   });
