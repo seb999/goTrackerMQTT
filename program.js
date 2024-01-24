@@ -1,17 +1,17 @@
 // NOTE : - to launch the server : node program.js
+//----Networks------------------------
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('gotracker.db');
-const { open } = require('sqlite');
 const http = require('http');
 const { Server } = require('socket.io');
 const mqtt = require('mqtt');
 const cors = require('cors');
-
+//----Firebase------------------------
 const admin = require('firebase-admin');
 const serviceAccount = require('./firebaseServiceAccountKey.json');
-
-// Open the database with sqlite.promisify
+//----Sqlite------------------------
+const sqlite3 = require('sqlite3').verbose();
+const db = new sqlite3.Database('gotracker.db');
+const { open } = require('sqlite');
 const dbPromise = open({
   filename: 'gotracker.db',
   driver: sqlite3.Database
@@ -56,7 +56,8 @@ io.on('connection', (socket) => {
   socket.on('firebase-token', (data) => {
     console.log("token coming from client");
     console.log(data);
-    
+
+    //Save token and deviceId
     const insertQuery = 'INSERT OR REPLACE INTO device (deviceId, firebaseToken ) VALUES (?, ?)';
     db.run(insertQuery, [data.deviceId, data.token], function (err) {
       if (err) {
@@ -93,15 +94,19 @@ ttnClient.on('message', async (topic, message) => {
   const deviceId = decodeTTNMessage(message);
   try {
     const db = await dbPromise;
-
     const query = 'SELECT firebaseToken FROM device WHERE deviceId = ?';
-    const row = await db.get(query, ['lora1']);
+    const row = await db.get(query, [deviceId]);
     if (row && row.firebaseToken) {
       const firebaseToken = row.firebaseToken;
       console.log(`Firebase Token for deviceName ${deviceId}: ${firebaseToken}`);
 
       // Trigger Firebase notification logic here using the retrieved token and the decoded message
-      // sendFirebaseNotification(firebaseToken, decodedMessage);
+      if(firebaseToken!=null) {
+        console.log(`Sending Firebase notification to ${deviceId}`);
+        sendFirebaseNotification(firebaseToken);
+      }
+      
+
     } else {
       console.log(`No Firebase Token found for deviceId ${deviceId}`);
     }
@@ -110,11 +115,6 @@ ttnClient.on('message', async (topic, message) => {
   }
 
   io.emit('ttn-data', message.toString());
-
-  //Read Firebase token from db and trigger firebase notification
-
-  //send firebase notification
-
 });
 
 //----------------------------------------------------------
@@ -132,21 +132,23 @@ function decodeTTNMessage(message) {
   const jsonData = JSON.parse(decodedMessage);
   return jsonData.end_device_ids.device_id;
 }
-//example to trigger firebase message
-// const registrationToken = 'your_device_registration_token';
 
-// const message = {
-//   data: {
-//     key1: 'value1',
-//     key2: 'value2',
-//   },
-//   token: registrationToken,
-// };
+function sendFirebaseNotification(token) {
+  const registrationToken = token;
 
-// messaging.send(message)
-//   .then((response) => {
-//     console.log('Successfully sent message:', response);
-//   })
-//   .catch((error) => {
-//     console.error('Error sending message:', error);
-//   });
+  const message = {
+    data: {
+      key1: 'Bonjour',
+      key2: 'Comment ca va ?',
+    },
+    token: registrationToken,
+  };
+
+  messaging.send(message)
+    .then((response) => {
+      console.log('Successfully sent message:', response);
+    })
+    .catch((error) => {
+      console.error('Error sending message:', error);
+    });
+}
