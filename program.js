@@ -4,14 +4,20 @@
 //    -subscribe to TTN mosquitto (MQTT) messages
 //    -redirect those messages to clients 
 //    -and send firebase notification
+//------------------------------------------------
 
 
-//----Networks------------------------
+//----Node Server------------------------
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const mqtt = require('mqtt');
 const cors = require('cors');
+//----TTN-----------------------------
+const mqtt = require('mqtt');
+const TTN_BROKER = 'eu1.cloud.thethings.network';
+const TTN_PORT = 1883;
+const TTN_APP_ID = 'mt-1@ttn';
+const TTN_ACCESS_KEY = 'NNSXS.66MIVPWI45SZ52HBLD2SFSJFK3ONMU6LPANDGKY.OUM4RFBYBSRKAGLAYMEWCSZHE2NU4GUITDZPLQQOKDJQWVF7ANMA';
 //----Firebase------------------------
 const admin = require('firebase-admin');
 const serviceAccount = require('./firebaseServiceAccountKey.json');
@@ -60,13 +66,21 @@ io.on('connection', (socket) => {
     console.log('Client disconnected');
   });
 
+  socket.on('client-set-state', (data) => {
+    console.log(`Set state for ${data.deviceId} to ${data.isActive}`);
+    const updateQuery = 'UPDATE device SET isActive = ? WHERE deviceId = ?';
+    db.run(updateQuery, [data.isActive, data.deviceId], function (err) {
+      if (err) {
+        return console.error(err.message);
+      }
+    });
+  });
+
   socket.on('firebase-token', (data) => {
     console.log("token coming from client");
     console.log(data);
-
-    //Save token and deviceId
-    const insertQuery = 'INSERT OR REPLACE INTO device (deviceId, firebaseToken ) VALUES (?, ?)';
-    db.run(insertQuery, [data.deviceId, data.token], function (err) {
+    const insertQuery = 'INSERT OR REPLACE INTO device (deviceId, firebaseToken, isActive ) VALUES (?, ?, ?)';
+    db.run(insertQuery, [data.deviceId, data.token, data.isActive], function (err) {
       if (err) {
         return console.error(err.message);
       }
@@ -78,10 +92,6 @@ io.on('connection', (socket) => {
 //-------------------------------------------------------------------------------
 // 3 - subscribe to TTN events and get messages and trigger firebase notification
 //--------------------------------------------------------------------------------
-const TTN_BROKER = 'eu1.cloud.thethings.network';
-const TTN_PORT = 1883;
-const TTN_APP_ID = 'mt-1@ttn';
-const TTN_ACCESS_KEY = 'NNSXS.66MIVPWI45SZ52HBLD2SFSJFK3ONMU6LPANDGKY.OUM4RFBYBSRKAGLAYMEWCSZHE2NU4GUITDZPLQQOKDJQWVF7ANMA';
 
 // MQTT client for TTN
 const ttnClient = mqtt.connect(`mqtt://${TTN_BROKER}:${TTN_PORT}`, {
@@ -109,7 +119,7 @@ ttnClient.on('message', async (topic, message) => {
       // Trigger Firebase notification logic here using the retrieved token and the decoded message
       if(firebaseToken!=null) {
         console.log(`Sending Firebase notification to ${deviceId}`);
-        sendFirebaseNotification(firebaseToken);
+        sendFirebaseNotification(firebaseToken, deviceId);
       }
     } else {
       console.log(`No Firebase Token found for deviceId ${deviceId}`);
@@ -136,17 +146,25 @@ function decodeTTNMessage(message) {
   return jsonData.end_device_ids.device_id;
 }
 
-function sendFirebaseNotification(token) {
+function sendFirebaseNotification(token, deviceId) {
   const registrationToken = token;
 
   const message = {
     data: {
-      key1: 'Bonjour',
-      key2: 'Comment ca va ?',
+      key1: 'deviceId',
+      key2: deviceId,
     },
     notification:{
       title:"Who is the best pilot?",
       body:"The little Seb!"
+    },
+    android:{
+      priority:"high"
+    },
+    apns:{
+      headers:{
+        "apns-priority":"5"
+      }
     },
     token: registrationToken,
   };
