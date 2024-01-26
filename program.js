@@ -76,7 +76,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('firebase-token', (data) => {
+  socket.on('client-firebase-token', (data) => {
     console.log("token coming from client");
     console.log(data);
     const insertQuery = 'INSERT OR REPLACE INTO device (deviceId, firebaseToken, isActive ) VALUES (?, ?, ?)';
@@ -110,14 +110,13 @@ ttnClient.on('message', async (topic, message) => {
   const deviceId = decodeTTNMessage(message);
   try {
     const db = await dbPromise;
-    const query = 'SELECT firebaseToken FROM device WHERE deviceId = ?';
+    const query = 'SELECT firebaseToken, isActive FROM device WHERE deviceId = ?';
     const row = await db.get(query, [deviceId]);
     if (row && row.firebaseToken) {
       const firebaseToken = row.firebaseToken;
       console.log(`Firebase Token for deviceName ${deviceId}: ${firebaseToken}`);
-
       // Trigger Firebase notification logic here using the retrieved token and the decoded message
-      if(firebaseToken!=null) {
+      if(firebaseToken!=null && row.isActive) {
         console.log(`Sending Firebase notification to ${deviceId}`);
         sendFirebaseNotification(firebaseToken, deviceId);
       }
@@ -155,16 +154,11 @@ function sendFirebaseNotification(token, deviceId) {
       key2: deviceId,
     },
     notification:{
-      title:"Who is the best pilot?",
-      body:"The little Seb!"
+      title:"GO TRACKER - ALERT!",
+      body:"Tracker Lora1 trigger alert!"
     },
     android:{
       priority:"high"
-    },
-    apns:{
-      headers:{
-        "apns-priority":"5"
-      }
     },
     token: registrationToken,
   };
